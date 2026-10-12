@@ -1,0 +1,49 @@
+workflows:
+  ios-native-workflow:
+    name: iOS Native Workflow
+    max_build_duration: 60
+    environment:
+      groups:
+        - apple_credentials # We will create this group in Codemagic
+      vars:
+        XCODE_PROJECT: "GCEVault.xcodeproj"
+        XCODE_SCHEME: "GCEVault"
+        BUNDLE_ID: "com.gcevault.app"
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+      - name: Generate Xcode Project
+        script: |
+          cd ios
+          xcodegen generate
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Build iOS App
+        script: |
+          cd ios
+          xcodebuild -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$CM_BUILD_DIR/build/GCEVault.xcarchive" \
+            archive \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
+            DEVELOPMENT_TEAM="$CM_TEAM_ID"
+      - name: Export .ipa
+        script: |
+          cd ios
+          xcodebuild -exportArchive \
+            -archivePath "$CM_BUILD_DIR/build/GCEVault.xcarchive" \
+            -exportOptionsPlist export_options.plist \
+            -exportPath "$CM_BUILD_DIR/build/ios"
+    artifacts:
+      - ios/build/ios/*.ipa
+    publishing:
+      email:
+        recipients:
+          - your_email@example.com # Replace with your actual email
